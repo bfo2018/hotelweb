@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -17,7 +17,7 @@ import {
 
 type Step = 1 | 2 | 3 | 4;
 
-export default function BookPage() {
+function BookPageContent() {
   const searchParams = useSearchParams();
   const preselectedRoom = searchParams.get("room") || "";
 
@@ -463,5 +463,19 @@ export default function BookPage() {
         </div>
       </section>
     </>
+  );
+}
+
+export default function BookPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="pt-32 pb-24 px-4 min-h-screen flex items-center justify-center">
+          <p className="text-tertiary">Loading booking...</p>
+        </div>
+      }
+    >
+      <BookPageContent />
+    </Suspense>
   );
 }

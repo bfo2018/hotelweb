@@ -17,25 +17,27 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://hotelweb.vercel.app"),
   title: {
     default: "Lumière & Stone | Boutique Hotel",
     template: "%s | Lumière & Stone",
   },
   description:
-    "Experience refined luxury at Lumière & Stone Boutique Hotel. Elegant rooms, world-class dining, and personalized service in the heart of the city.",
+    "Experience refined luxury at Lumière & Stone Boutique Hotel in Tikamgarh, Madhya Pradesh. Elegant rooms, dining, events, and personalized service.",
   keywords: [
     "boutique hotel",
     "luxury hotel",
     "Lumière & Stone",
     "hotel booking",
+    "Tikamgarh",
   ],
   openGraph: {
     type: "website",
-    locale: "en_US",
+    locale: "en_IN",
     siteName: "Lumière & Stone Boutique Hotel",
     title: "Lumière & Stone | Boutique Hotel",
     description:
-      "Experience refined luxury at Lumière & Stone Boutique Hotel.",
+      "Experience refined luxury at Lumière & Stone Boutique Hotel in Tikamgarh.",
     images: [{ url: "/og-image.jpg", width: 1200, height: 630 }],
   },
 };
