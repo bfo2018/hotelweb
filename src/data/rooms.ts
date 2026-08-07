@@ -1,5 +1,7 @@
 export interface Room {
   id: string;
+  /** Numeric id from Hotel API — required for create_booking */
+  apiId?: number;
   slug: string;
   name: string;
   tagline: string;
@@ -17,6 +19,8 @@ export interface Room {
   features: string[];
   virtualTourUrl?: string;
   available: boolean;
+  roomNumber?: string;
+  categoryName?: string;
 }
 
 export const rooms: Room[] = [

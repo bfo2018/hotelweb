@@ -1,12 +1,12 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { rooms } from "@/data/rooms";
+import { rooms as fallbackRooms } from "@/data/rooms";
 import { Button } from "@/components/ui/Button";
+import { useRooms } from "@/hooks/useRooms";
 import {
   ArrowLeft,
   ArrowRight,
@@ -18,18 +18,39 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 export default function RoomDetailPage() {
   const params = useParams();
   const slug = params.slug as string;
-  const room = rooms.find((r) => r.slug === slug);
+  const { rooms, loading } = useRooms({ available_only: 1 });
+
+  const room = useMemo(() => {
+    const fromApi = rooms.find((r) => r.slug === slug || r.id === slug);
+    if (fromApi) return fromApi;
+    return fallbackRooms.find((r) => r.slug === slug);
+  }, [rooms, slug]);
 
   const [currentImage, setCurrentImage] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
+  if (loading && !room) {
+    return (
+      <div className="pt-32 pb-24 px-4 min-h-screen flex items-center justify-center">
+        <p className="text-tertiary">Loading room...</p>
+      </div>
+    );
+  }
+
   if (!room) {
-    notFound();
+    return (
+      <div className="pt-32 pb-24 px-4 min-h-screen flex flex-col items-center justify-center gap-4">
+        <p className="text-tertiary">Room not found.</p>
+        <Link href="/rooms">
+          <Button variant="outlined">Back to Rooms</Button>
+        </Link>
+      </div>
+    );
   }
 
   const nextImage = () => {

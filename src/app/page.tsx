@@ -9,11 +9,12 @@ import { RoomCard } from "@/components/ui/RoomCard";
 import { ReviewCard } from "@/components/ui/ReviewCard";
 import { Button } from "@/components/ui/Button";
 import { StickyBookButton } from "@/components/ui/StickyBookButton";
-import { rooms } from "@/data/rooms";
+import { useRooms } from "@/hooks/useRooms";
 import { reviews } from "@/data/reviews";
 import { ArrowRight, Sparkles, Shield, Heart } from "lucide-react";
 
 export default function HomePage() {
+  const { rooms } = useRooms({ available_only: 1 });
   const featuredRooms = rooms.slice(0, 3);
 
   return (

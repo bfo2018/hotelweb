@@ -1,14 +1,24 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { CalendarDays, Users, Search } from "lucide-react";
 import { Button } from "./Button";
 
 export function SearchBar() {
+  const router = useRouter();
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
   const [guests, setGuests] = useState("2");
+
+  const handleSearch = () => {
+    const params = new URLSearchParams();
+    if (checkIn) params.set("checkIn", checkIn);
+    if (checkOut) params.set("checkOut", checkOut);
+    if (guests) params.set("guests", guests);
+    router.push(`/book?${params.toString()}`);
+  };
 
   return (
     <motion.div
@@ -19,7 +29,6 @@ export function SearchBar() {
     >
       <div className="bg-white/95 backdrop-blur-md rounded-sm shadow-2xl p-4 md:p-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {/* Check-in */}
           <div className="space-y-1.5">
             <label className="flex items-center gap-1.5 text-xs font-medium text-tertiary uppercase tracking-wider">
               <CalendarDays className="w-3.5 h-3.5" />
@@ -33,7 +42,6 @@ export function SearchBar() {
             />
           </div>
 
-          {/* Check-out */}
           <div className="space-y-1.5">
             <label className="flex items-center gap-1.5 text-xs font-medium text-tertiary uppercase tracking-wider">
               <CalendarDays className="w-3.5 h-3.5" />
@@ -47,7 +55,6 @@ export function SearchBar() {
             />
           </div>
 
-          {/* Guests */}
           <div className="space-y-1.5">
             <label className="flex items-center gap-1.5 text-xs font-medium text-tertiary uppercase tracking-wider">
               <Users className="w-3.5 h-3.5" />
@@ -65,9 +72,13 @@ export function SearchBar() {
             </select>
           </div>
 
-          {/* Search Button */}
           <div className="flex items-end">
-            <Button fullWidth size="md" className="gap-2">
+            <Button
+              fullWidth
+              size="md"
+              className="gap-2"
+              onClick={handleSearch}
+            >
               <Search className="w-4 h-4" />
               Check Availability
             </Button>

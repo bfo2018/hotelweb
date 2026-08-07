@@ -1,11 +1,15 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, Suspense, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
-import { rooms } from "@/data/rooms";
+import { useRooms } from "@/hooks/useRooms";
+import { useAuthStore, normalizeMobile } from "@/store/auth";
+import { createBooking } from "@/lib/api/hotel";
+import type { Booking, PaymentType } from "@/lib/api/types";
+import { HotelApiError } from "@/lib/api/types";
 import {
   CalendarDays,
   Users,
@@ -20,21 +24,57 @@ type Step = 1 | 2 | 3 | 4;
 function BookPageContent() {
   const searchParams = useSearchParams();
   const preselectedRoom = searchParams.get("room") || "";
+  const preCheckIn = searchParams.get("checkIn") || "";
+  const preCheckOut = searchParams.get("checkOut") || "";
+  const preGuests = searchParams.get("guests") || "2";
+
+  const customer = useAuthStore((s) => s.customer);
+  const token = useAuthStore((s) => s.token);
+  const hydrated = useAuthStore((s) => s.hydrated);
 
   const [step, setStep] = useState<Step>(1);
   const [form, setForm] = useState({
-    checkIn: "",
-    checkOut: "",
-    guests: "2",
+    checkIn: preCheckIn,
+    checkOut: preCheckOut,
+    guests: preGuests,
     room: preselectedRoom,
     name: "",
     email: "",
     phone: "",
     specialRequests: "",
+    paymentType: "UPI" as PaymentType,
+    advancePayment: "",
   });
-  const [isConfirmed, setIsConfirmed] = useState(false);
+  const [confirmedBooking, setConfirmedBooking] = useState<Booking | null>(
+    null
+  );
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const selectedRoom = rooms.find((r) => r.slug === form.room);
+  const roomQuery = useMemo(
+    () => ({
+      available_only: 1 as const,
+      check_in_date: form.checkIn || undefined,
+      check_out_date: form.checkOut || undefined,
+    }),
+    [form.checkIn, form.checkOut]
+  );
+
+  const { rooms, loading: roomsLoading } = useRooms(roomQuery);
+
+  useEffect(() => {
+    if (!hydrated || !customer) return;
+    setForm((prev) => ({
+      ...prev,
+      name: prev.name || customer.full_name || "",
+      email: prev.email || customer.email || "",
+      phone: prev.phone || customer.mobile_number || "",
+    }));
+  }, [hydrated, customer]);
+
+  const selectedRoom = rooms.find(
+    (r) => r.slug === form.room || r.id === form.room
+  );
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -47,11 +87,54 @@ function BookPageContent() {
   const nextStep = () => setStep((s) => Math.min(s + 1, 4) as Step);
   const prevStep = () => setStep((s) => Math.max(s - 1, 1) as Step);
 
-  const handleConfirm = () => {
-    setIsConfirmed(true);
+  const handleConfirm = async () => {
+    setSubmitError(null);
+
+    const roomId = selectedRoom?.apiId ?? Number(selectedRoom?.id);
+    if (!selectedRoom || !Number.isFinite(roomId) || roomId <= 0) {
+      setSubmitError(
+        "This room cannot be booked online yet. Please choose a live inventory room."
+      );
+      return;
+    }
+
+    const mobile = normalizeMobile(form.phone);
+    if (mobile.length !== 10) {
+      setSubmitError("Please enter a valid 10-digit mobile number.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const data = await createBooking(
+        {
+          room_id: roomId,
+          check_in_date: form.checkIn,
+          check_out_date: form.checkOut,
+          guest_name: form.name.trim(),
+          mobile_number: mobile,
+          email: form.email.trim() || undefined,
+          number_of_guests: Number(form.guests) || 1,
+          payment_type: form.paymentType,
+          advance_payment: form.advancePayment
+            ? Number(form.advancePayment)
+            : 0,
+        },
+        token
+      );
+      setConfirmedBooking(data.booking);
+    } catch (err) {
+      setSubmitError(
+        err instanceof HotelApiError
+          ? err.message
+          : "Booking failed. Please try again."
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  if (isConfirmed) {
+  if (confirmedBooking) {
     return (
       <section className="pt-32 pb-24 px-4 min-h-screen flex items-center">
         <div className="max-w-lg mx-auto text-center">
@@ -67,36 +150,50 @@ function BookPageContent() {
               Booking Confirmed!
             </h1>
             <p className="text-tertiary">
-              Thank you, {form.name}. Your reservation at Lumière & Stone has
-              been confirmed.
+              Thank you, {confirmedBooking.guest_name}. Your reservation at
+              Lumière & Stone is confirmed.
             </p>
             <div className="bg-cream rounded-sm p-6 text-left space-y-3">
               <p className="text-sm text-tertiary">
+                <span className="font-medium text-neutral">Booking No:</span>{" "}
+                {confirmedBooking.booking_number}
+              </p>
+              <p className="text-sm text-tertiary">
                 <span className="font-medium text-neutral">Room:</span>{" "}
-                {selectedRoom?.name}
+                {confirmedBooking.room?.category_name || "Room"}{" "}
+                {confirmedBooking.room?.room_number}
               </p>
               <p className="text-sm text-tertiary">
                 <span className="font-medium text-neutral">Check-in:</span>{" "}
-                {form.checkIn}
+                {confirmedBooking.check_in_date}
               </p>
               <p className="text-sm text-tertiary">
                 <span className="font-medium text-neutral">Check-out:</span>{" "}
-                {form.checkOut}
+                {confirmedBooking.check_out_date}
               </p>
               <p className="text-sm text-tertiary">
                 <span className="font-medium text-neutral">Guests:</span>{" "}
-                {form.guests}
+                {confirmedBooking.number_of_guests}
+              </p>
+              <p className="text-sm text-tertiary">
+                <span className="font-medium text-neutral">Total:</span> ₹
+                {Number(confirmedBooking.final_amount).toLocaleString("en-IN")}
               </p>
             </div>
-            <p className="text-sm text-tertiary">
-              A confirmation email has been sent to{" "}
-              <span className="font-medium">{form.email}</span>
-            </p>
-            <Link href="/">
-              <Button variant="outlined" className="mt-4">
-                Back to Home
-              </Button>
-            </Link>
+            {confirmedBooking.email && (
+              <p className="text-sm text-tertiary">
+                Confirmation details for{" "}
+                <span className="font-medium">{confirmedBooking.email}</span>
+              </p>
+            )}
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Link href="/my-bookings">
+                <Button>View My Bookings</Button>
+              </Link>
+              <Link href="/">
+                <Button variant="outlined">Back to Home</Button>
+              </Link>
+            </div>
           </motion.div>
         </div>
       </section>
@@ -105,7 +202,6 @@ function BookPageContent() {
 
   return (
     <>
-      {/* Header */}
       <section className="pt-32 pb-8 px-4">
         <div className="max-w-3xl mx-auto">
           <Link
@@ -119,13 +215,12 @@ function BookPageContent() {
             Book Your Stay
           </h1>
 
-          {/* Progress Steps */}
           <div className="flex items-center gap-2 mt-6">
             {[
               { num: 1, label: "Dates" },
               { num: 2, label: "Room" },
               { num: 3, label: "Details" },
-              { num: 4, label: "Payment" },
+              { num: 4, label: "Confirm" },
             ].map((s, i) => (
               <div key={s.num} className="flex items-center gap-2 flex-1">
                 <div
@@ -135,11 +230,7 @@ function BookPageContent() {
                       : "bg-cream text-tertiary border border-tertiary/30"
                   }`}
                 >
-                  {step > s.num ? (
-                    <Check className="w-4 h-4" />
-                  ) : (
-                    s.num
-                  )}
+                  {step > s.num ? <Check className="w-4 h-4" /> : s.num}
                 </div>
                 <span
                   className={`text-xs hidden sm:block ${
@@ -161,11 +252,9 @@ function BookPageContent() {
         </div>
       </section>
 
-      {/* Form Steps */}
       <section className="pb-24 px-4">
         <div className="max-w-3xl mx-auto">
           <AnimatePresence mode="wait">
-            {/* Step 1: Dates & Guests */}
             {step === 1 && (
               <motion.div
                 key="step1"
@@ -238,7 +327,6 @@ function BookPageContent() {
               </motion.div>
             )}
 
-            {/* Step 2: Room Selection */}
             {step === 2 && (
               <motion.div
                 key="step2"
@@ -250,6 +338,16 @@ function BookPageContent() {
                 <h2 className="font-[family-name:var(--font-playfair)] text-xl font-medium text-neutral">
                   Choose your room
                 </h2>
+                {roomsLoading && (
+                  <p className="text-sm text-tertiary">
+                    Checking availability...
+                  </p>
+                )}
+                {!roomsLoading && rooms.length === 0 && (
+                  <p className="text-sm text-tertiary">
+                    No rooms available for these dates. Try different dates.
+                  </p>
+                )}
                 <div className="space-y-3">
                   {rooms.map((room) => (
                     <button
@@ -264,17 +362,18 @@ function BookPageContent() {
                           : "border-tertiary/20 hover:border-tertiary/40"
                       }`}
                     >
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-4">
                         <div>
-                          <p className="font-medium text-neutral">
-                            {room.name}
-                          </p>
+                          <p className="font-medium text-neutral">{room.name}</p>
                           <p className="text-xs text-tertiary mt-0.5">
-                            {room.size} {room.sizeUnit} &middot; {room.bedType}{" "}
-                            Bed &middot; {room.view} View
+                            {room.categoryName || room.bedType}
+                            {room.maxGuests
+                              ? ` · Up to ${room.maxGuests} guests`
+                              : ""}
+                            {!room.apiId ? " · Showcase only" : ""}
                           </p>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right shrink-0">
                           <p className="font-semibold text-primary">
                             ₹{room.price.toLocaleString("en-IN")}
                           </p>
@@ -300,7 +399,6 @@ function BookPageContent() {
               </motion.div>
             )}
 
-            {/* Step 3: Guest Details */}
             {step === 3 && (
               <motion.div
                 key="step3"
@@ -312,6 +410,15 @@ function BookPageContent() {
                 <h2 className="font-[family-name:var(--font-playfair)] text-xl font-medium text-neutral">
                   Guest Details
                 </h2>
+                {!token && (
+                  <p className="text-sm text-tertiary">
+                    Optional:{" "}
+                    <Link href="/login" className="text-primary hover:underline">
+                      sign in
+                    </Link>{" "}
+                    to link this booking to your account.
+                  </p>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <label className="text-xs font-medium text-tertiary uppercase tracking-wider">
@@ -336,7 +443,6 @@ function BookPageContent() {
                       name="email"
                       value={form.email}
                       onChange={handleChange}
-                      required
                       placeholder="your@email.com"
                       className="w-full bg-cream border border-tertiary/20 rounded-sm px-4 py-3 text-sm text-neutral placeholder:text-tertiary/50 focus:outline-none focus:border-primary transition-colors"
                     />
@@ -352,7 +458,7 @@ function BookPageContent() {
                     value={form.phone}
                     onChange={handleChange}
                     required
-                    placeholder="+91 98765 43210"
+                    placeholder="10-digit mobile number"
                     className="w-full bg-cream border border-tertiary/20 rounded-sm px-4 py-3 text-sm text-neutral placeholder:text-tertiary/50 focus:outline-none focus:border-primary transition-colors"
                   />
                 </div>
@@ -375,17 +481,16 @@ function BookPageContent() {
                   </Button>
                   <Button
                     onClick={nextStep}
-                    disabled={!form.name || !form.email || !form.phone}
+                    disabled={!form.name || !form.phone}
                     className="gap-2"
                   >
-                    Next: Payment
+                    Next: Confirm
                     <ArrowRight className="w-4 h-4" />
                   </Button>
                 </div>
               </motion.div>
             )}
 
-            {/* Step 4: Payment */}
             {step === 4 && (
               <motion.div
                 key="step4"
@@ -395,10 +500,9 @@ function BookPageContent() {
                 className="space-y-6"
               >
                 <h2 className="font-[family-name:var(--font-playfair)] text-xl font-medium text-neutral">
-                  Review & Payment
+                  Review & Confirm
                 </h2>
 
-                {/* Booking Summary */}
                 <div className="bg-cream rounded-sm p-6 space-y-4">
                   <h3 className="font-medium text-neutral">Booking Summary</h3>
                   <div className="space-y-2 text-sm">
@@ -431,28 +535,65 @@ function BookPageContent() {
                   </div>
                 </div>
 
-                {/* Payment Placeholder */}
                 <div className="border border-tertiary/20 rounded-sm p-6 space-y-4">
                   <div className="flex items-center gap-2">
                     <CreditCard className="w-5 h-5 text-primary" />
                     <h3 className="font-medium text-neutral">Payment</h3>
                   </div>
-                  <p className="text-sm text-tertiary">
-                    Secure payment powered by Razorpay. You will be redirected to
-                    complete payment after confirmation.
-                  </p>
-                  <div className="bg-cream/50 border border-dashed border-tertiary/30 rounded-sm p-4 text-center">
-                    <p className="text-xs text-tertiary">
-                      Razorpay Payment Gateway will load here
-                    </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium text-tertiary uppercase tracking-wider">
+                        Payment Type
+                      </label>
+                      <select
+                        name="paymentType"
+                        value={form.paymentType}
+                        onChange={handleChange}
+                        className="w-full bg-cream border border-tertiary/20 rounded-sm px-4 py-3 text-sm text-neutral focus:outline-none focus:border-primary appearance-none"
+                      >
+                        <option value="UPI">UPI</option>
+                        <option value="CARD">Card</option>
+                        <option value="CASH">Cash</option>
+                        <option value="BANK_TRANSFER">Bank Transfer</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium text-tertiary uppercase tracking-wider">
+                        Advance (optional)
+                      </label>
+                      <input
+                        type="number"
+                        name="advancePayment"
+                        min="0"
+                        value={form.advancePayment}
+                        onChange={handleChange}
+                        placeholder="0"
+                        className="w-full bg-cream border border-tertiary/20 rounded-sm px-4 py-3 text-sm text-neutral focus:outline-none focus:border-primary"
+                      />
+                    </div>
                   </div>
+                  <p className="text-sm text-tertiary">
+                    Your booking will be created as confirmed. Online payment
+                    gateway can be added later.
+                  </p>
                 </div>
+
+                {submitError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-sm px-4 py-3">
+                    {submitError}
+                  </div>
+                )}
 
                 <div className="flex justify-between pt-4">
                   <Button variant="outlined" onClick={prevStep}>
                     Back
                   </Button>
-                  <Button onClick={handleConfirm} size="lg" className="gap-2">
+                  <Button
+                    onClick={handleConfirm}
+                    size="lg"
+                    className="gap-2"
+                    loading={submitting}
+                  >
                     Confirm Booking
                     <Check className="w-4 h-4" />
                   </Button>

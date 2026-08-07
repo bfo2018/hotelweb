@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import Image from "next/image";
 import { Room } from "@/data/rooms";
+import { DEFAULT_ROOM_IMAGE } from "@/lib/api/config";
 import { Users, Maximize2, Eye } from "lucide-react";
 
 interface RoomCardProps {
@@ -12,6 +13,8 @@ interface RoomCardProps {
 }
 
 export function RoomCard({ room, index = 0 }: RoomCardProps) {
+  const imageSrc = room.thumbnail || room.images?.[0] || DEFAULT_ROOM_IMAGE;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 30 }}
@@ -22,7 +25,7 @@ export function RoomCard({ room, index = 0 }: RoomCardProps) {
       <Link href={`/rooms/${room.slug}`} className="group block">
         <div className="relative overflow-hidden rounded-sm aspect-[4/3]">
           <Image
-            src={room.thumbnail}
+            src={imageSrc}
             alt={room.name}
             fill
             className="object-cover transition-transform duration-700 group-hover:scale-110"
@@ -57,10 +60,12 @@ export function RoomCard({ room, index = 0 }: RoomCardProps) {
             </div>
           </div>
           <div className="flex items-center gap-4 text-sm text-tertiary pt-2 border-t border-tertiary/20">
-            <span className="flex items-center gap-1.5">
-              <Maximize2 className="w-3.5 h-3.5" />
-              {room.size} {room.sizeUnit}
-            </span>
+            {room.sizeUnit ? (
+              <span className="flex items-center gap-1.5">
+                <Maximize2 className="w-3.5 h-3.5" />
+                {room.size} {room.sizeUnit}
+              </span>
+            ) : null}
             <span className="flex items-center gap-1.5">
               <Users className="w-3.5 h-3.5" />
               {room.maxGuests} Guests
