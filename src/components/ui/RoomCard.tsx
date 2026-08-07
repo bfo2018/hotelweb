@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import Image from "next/image";
@@ -13,7 +14,13 @@ interface RoomCardProps {
 }
 
 export function RoomCard({ room, index = 0 }: RoomCardProps) {
-  const imageSrc = room.thumbnail || room.images?.[0] || DEFAULT_ROOM_IMAGE;
+  const preferred =
+    room.thumbnail || room.images?.[0] || DEFAULT_ROOM_IMAGE;
+  const [imageSrc, setImageSrc] = useState(preferred);
+
+  useEffect(() => {
+    setImageSrc(preferred);
+  }, [preferred]);
 
   return (
     <motion.div
@@ -30,6 +37,11 @@ export function RoomCard({ room, index = 0 }: RoomCardProps) {
             fill
             className="object-cover transition-transform duration-700 group-hover:scale-110"
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            onError={() => {
+              if (imageSrc !== DEFAULT_ROOM_IMAGE) {
+                setImageSrc(DEFAULT_ROOM_IMAGE);
+              }
+            }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
           <div className="absolute bottom-0 left-0 right-0 p-6 translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500">

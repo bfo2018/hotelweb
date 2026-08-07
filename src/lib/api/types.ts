@@ -34,7 +34,10 @@ export interface AuthPayload {
 export interface RoomPhoto {
   id: number;
   url: string;
-  is_primary: number;
+  is_primary: number | boolean | string;
+  photo_url?: string;
+  image_url?: string;
+  path?: string;
 }
 
 export interface RoomCategory {
@@ -54,8 +57,8 @@ export interface ApiRoom {
   rate_per_night: number;
   description: string | null;
   category: RoomCategory | null;
-  photos: RoomPhoto[];
-  primary_photo: string | null;
+  photos?: RoomPhoto[] | null;
+  primary_photo?: string | null;
 }
 
 export interface RoomsListData {

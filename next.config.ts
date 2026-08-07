@@ -4,6 +4,7 @@ function apiImageHosts(): { protocol: "http" | "https"; hostname: string }[] {
   const hosts: { protocol: "http" | "https"; hostname: string }[] = [
     { protocol: "https", hostname: "images.unsplash.com" },
     { protocol: "https", hostname: "cdn.sanity.io" },
+    { protocol: "https", hostname: "hmsposbookingsystem.navyom.com" },
     { protocol: "http", hostname: "localhost" },
     { protocol: "http", hostname: "127.0.0.1" },
   ];

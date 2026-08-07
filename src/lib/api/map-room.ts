@@ -1,6 +1,6 @@
 import { Room } from "@/data/rooms";
-import { DEFAULT_ROOM_IMAGE } from "./config";
-import type { ApiRoom } from "./types";
+import { DEFAULT_ROOM_IMAGE, HOTEL_API_BASE_URL } from "./config";
+import type { ApiRoom, RoomPhoto } from "./types";
 
 function slugify(value: string): string {
   return value
@@ -10,17 +10,83 @@ function slugify(value: string): string {
     .replace(/^-|-$/g, "");
 }
 
-/** Prefer API photos; fall back to primary_photo; then default Unsplash image */
-export function resolveRoomImages(apiRoom: ApiRoom): string[] {
-  const fromPhotos =
-    apiRoom.photos
-      ?.map((p) => p.url)
-      .filter((url): url is string => Boolean(url?.trim())) ?? [];
+/** Origin used to resolve relative photo paths from the Hotel API */
+function mediaOrigin(): string {
+  try {
+    const stripped = HOTEL_API_BASE_URL.replace(/\/(?:hotel-api|api\/hotel)\/?$/i, "");
+    return new URL(stripped || HOTEL_API_BASE_URL).origin;
+  } catch {
+    return "";
+  }
+}
 
-  if (fromPhotos.length > 0) return fromPhotos;
+function mediaBasePath(): string {
+  try {
+    const stripped = HOTEL_API_BASE_URL.replace(/\/(?:hotel-api|api\/hotel)\/?$/i, "");
+    return stripped.replace(/\/$/, "");
+  } catch {
+    return "";
+  }
+}
+
+/** Turn relative API image paths into absolute URLs browsers / next/image can load */
+export function absoluteMediaUrl(url: string): string {
+  const trimmed = url.trim();
+  if (!trimmed) return "";
+  if (/^(https?:\/\/|data:)/i.test(trimmed)) return trimmed;
+
+  if (trimmed.startsWith("//")) {
+    return `http:${trimmed}`;
+  }
+
+  if (trimmed.startsWith("/")) {
+    const origin = mediaOrigin();
+    return origin ? `${origin}${trimmed}` : trimmed;
+  }
+
+  const base = mediaBasePath();
+  return base ? `${base}/${trimmed}` : trimmed;
+}
+
+function extractPhotoUrl(photo: RoomPhoto | Record<string, unknown>): string {
+  const raw =
+    (photo as RoomPhoto).url ||
+    (photo as { photo_url?: string }).photo_url ||
+    (photo as { image_url?: string }).image_url ||
+    (photo as { path?: string }).path ||
+    "";
+  return absoluteMediaUrl(String(raw || ""));
+}
+
+function isPrimaryPhoto(photo: RoomPhoto | Record<string, unknown>): boolean {
+  const flag = (photo as RoomPhoto).is_primary as unknown;
+  return flag === 1 || flag === true || flag === "1";
+}
+
+/**
+ * Prefer API photos (primary first); then primary_photo; then default image.
+ * Handles absolute and relative URLs.
+ */
+export function resolveRoomImages(apiRoom: ApiRoom): string[] {
+  const photos = Array.isArray(apiRoom.photos) ? [...apiRoom.photos] : [];
+
+  photos.sort((a, b) => {
+    const ap = isPrimaryPhoto(a) ? 0 : 1;
+    const bp = isPrimaryPhoto(b) ? 0 : 1;
+    return ap - bp;
+  });
+
+  const fromPhotos = photos
+    .map(extractPhotoUrl)
+    .filter((url): url is string => Boolean(url));
+
+  // Deduplicate while preserving order
+  const unique = [...new Set(fromPhotos)];
+  if (unique.length > 0) return unique;
 
   if (apiRoom.primary_photo?.trim()) {
-    return [apiRoom.primary_photo.trim()];
+    const primary = absoluteMediaUrl(apiRoom.primary_photo);
+    if (primary) return [primary];
   }
 
   return [DEFAULT_ROOM_IMAGE];
@@ -46,7 +112,10 @@ export function mapApiRoomToRoom(apiRoom: ApiRoom): Room {
       apiRoom.description?.trim() ||
       apiRoom.category?.description?.trim() ||
       `${roomLabel} available for booking.`,
-    price: Number(apiRoom.rate_per_night) || Number(apiRoom.category?.base_rate) || 0,
+    price:
+      Number(apiRoom.rate_per_night) ||
+      Number(apiRoom.category?.base_rate) ||
+      0,
     currency: "INR",
     size: apiRoom.floor_number ?? 0,
     sizeUnit: apiRoom.floor_number != null ? "Floor" : "",

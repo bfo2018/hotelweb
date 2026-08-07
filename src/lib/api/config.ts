@@ -1,10 +1,10 @@
 /**
  * Hotel API configuration.
- * Set NEXT_PUBLIC_HOTEL_API_URL and NEXT_PUBLIC_RESTAURANT_ID in .env.local
+ * Set NEXT_PUBLIC_HOTEL_API_URL and NEXT_PUBLIC_RESTAURANT_ID in .env.local / Vercel.
  */
 export const HOTEL_API_BASE_URL =
   process.env.NEXT_PUBLIC_HOTEL_API_URL?.replace(/\/$/, "") ||
-  "http://localhost/restaurant4_for_client/hotel-api";
+  "https://hmsposbookingsystem.navyom.com/hotel-api";
 
 export const RESTAURANT_ID = Number(
   process.env.NEXT_PUBLIC_RESTAURANT_ID || "1"
