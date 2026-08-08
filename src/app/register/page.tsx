@@ -36,7 +36,7 @@ export default function RegisterPage() {
         password: form.password,
         email: form.email || undefined,
       });
-      router.push("/book");
+      router.push("/rooms");
     } catch (err) {
       setError(
         err instanceof HotelApiError

@@ -442,7 +442,7 @@ export default function HomePage() {
               deserve it — your extraordinary stay awaits.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link href="/book">
+              <Link href="/rooms">
                 <Button size="lg" className="gap-2">
                   Reserve Your Room
                   <ArrowRight className="w-4 h-4" />

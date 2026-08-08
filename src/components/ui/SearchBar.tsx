@@ -5,19 +5,30 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { CalendarDays, Users, Search } from "lucide-react";
 import { Button } from "./Button";
+import { isStayValid, roomsPath, todayISO } from "@/lib/stay";
 
 export function SearchBar() {
   const router = useRouter();
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
   const [guests, setGuests] = useState("2");
+  const [error, setError] = useState<string | null>(null);
 
   const handleSearch = () => {
-    const params = new URLSearchParams();
-    if (checkIn) params.set("checkIn", checkIn);
-    if (checkOut) params.set("checkOut", checkOut);
-    if (guests) params.set("guests", guests);
-    router.push(`/book?${params.toString()}`);
+    if (!checkIn || !checkOut) {
+      setError("Please select check-in and check-out dates.");
+      return;
+    }
+    if (!isStayValid(checkIn, checkOut)) {
+      setError(
+        checkIn < todayISO()
+          ? "Check-in cannot be in the past."
+          : "Check-out must be after check-in."
+      );
+      return;
+    }
+    setError(null);
+    router.push(roomsPath({ checkIn, checkOut, guests }));
   };
 
   return (
@@ -37,7 +48,11 @@ export function SearchBar() {
             <input
               type="date"
               value={checkIn}
-              onChange={(e) => setCheckIn(e.target.value)}
+              min={todayISO()}
+              onChange={(e) => {
+                setCheckIn(e.target.value);
+                setError(null);
+              }}
               className="w-full bg-cream border border-tertiary/20 rounded-sm px-3 py-2.5 text-sm text-neutral focus:outline-none focus:border-primary transition-colors"
             />
           </div>
@@ -50,7 +65,11 @@ export function SearchBar() {
             <input
               type="date"
               value={checkOut}
-              onChange={(e) => setCheckOut(e.target.value)}
+              min={checkIn || todayISO()}
+              onChange={(e) => {
+                setCheckOut(e.target.value);
+                setError(null);
+              }}
               className="w-full bg-cream border border-tertiary/20 rounded-sm px-3 py-2.5 text-sm text-neutral focus:outline-none focus:border-primary transition-colors"
             />
           </div>
@@ -84,6 +103,9 @@ export function SearchBar() {
             </Button>
           </div>
         </div>
+        {error && (
+          <p className="mt-3 text-sm text-red-600 text-center">{error}</p>
+        )}
       </div>
     </motion.div>
   );

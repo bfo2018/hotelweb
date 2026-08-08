@@ -111,7 +111,7 @@ export default function MyBookingsPage() {
                 : "Your reservations"}
             </p>
           </div>
-          <Button onClick={() => router.push("/book")} size="sm">
+          <Button onClick={() => router.push("/rooms")} size="sm">
             Book a Room
           </Button>
         </div>
@@ -132,7 +132,7 @@ export default function MyBookingsPage() {
           <div className="text-center py-16 space-y-4">
             <CalendarDays className="w-10 h-10 text-tertiary mx-auto" />
             <p className="text-tertiary">No bookings found yet.</p>
-            <Link href="/book">
+            <Link href="/rooms">
               <Button variant="outlined">Make your first booking</Button>
             </Link>
           </div>

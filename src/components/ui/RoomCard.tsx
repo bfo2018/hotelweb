@@ -6,17 +6,27 @@ import Link from "next/link";
 import Image from "next/image";
 import { Room } from "@/data/rooms";
 import { DEFAULT_ROOM_IMAGE } from "@/lib/api/config";
+import { roomDetailPath, type StayParams } from "@/lib/stay";
 import { Users, Maximize2, Eye } from "lucide-react";
 
 interface RoomCardProps {
   room: Room;
   index?: number;
+  stay?: StayParams;
+  /** When stay dates are set, emphasize booking CTA */
+  bookingMode?: boolean;
 }
 
-export function RoomCard({ room, index = 0 }: RoomCardProps) {
+export function RoomCard({
+  room,
+  index = 0,
+  stay,
+  bookingMode = false,
+}: RoomCardProps) {
   const preferred =
     room.thumbnail || room.images?.[0] || DEFAULT_ROOM_IMAGE;
   const [imageSrc, setImageSrc] = useState(preferred);
+  const href = roomDetailPath(room.slug, stay);
 
   useEffect(() => {
     setImageSrc(preferred);
@@ -29,7 +39,7 @@ export function RoomCard({ room, index = 0 }: RoomCardProps) {
       viewport={{ once: true, margin: "-50px" }}
       transition={{ duration: 0.5, delay: index * 0.1 }}
     >
-      <Link href={`/rooms/${room.slug}`} className="group block">
+      <Link href={href} className="group block">
         <div className="relative overflow-hidden rounded-sm aspect-[4/3]">
           <Image
             src={imageSrc}
@@ -46,7 +56,7 @@ export function RoomCard({ room, index = 0 }: RoomCardProps) {
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
           <div className="absolute bottom-0 left-0 right-0 p-6 translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500">
             <span className="text-white text-sm font-medium tracking-wide uppercase">
-              Explore Room
+              {bookingMode ? "Select Room" : "Explore Room"}
             </span>
           </div>
           {room.virtualTourUrl && (

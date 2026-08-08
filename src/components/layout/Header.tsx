@@ -181,7 +181,7 @@ export function Header() {
                 </Link>
               )}
 
-              <Link href="/book">
+              <Link href="/rooms">
                 <Button variant={solid ? "primary" : "inverted"} size="sm">
                   Book Now
                 </Button>
@@ -253,7 +253,7 @@ export function Header() {
               )}
 
               <div className="pt-6 border-t border-tertiary/20">
-                <Link href="/book" onClick={() => setIsMobileMenuOpen(false)}>
+                <Link href="/rooms" onClick={() => setIsMobileMenuOpen(false)}>
                   <Button fullWidth size="lg">
                     Book Now
                   </Button>

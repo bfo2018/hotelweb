@@ -6,7 +6,7 @@ const footerLinks = {
     { href: "/rooms", label: "Rooms & Suites" },
     { href: "/restaurant", label: "Restaurant" },
     { href: "/events", label: "Weddings & Events" },
-    { href: "/book", label: "Book Now" },
+    { href: "/rooms", label: "Book Now" },
   ],
   experience: [
     { href: "/explore", label: "Explore Tikamgarh" },

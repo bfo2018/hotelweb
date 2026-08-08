@@ -25,7 +25,7 @@ export function StickyBookButton() {
           className="fixed bottom-6 right-6 z-40 md:hidden"
         >
           <Link
-            href="/book"
+            href="/rooms"
             className="flex items-center justify-center bg-primary text-white px-6 py-3.5 rounded-full shadow-lg hover:bg-primary-light transition-colors font-medium text-sm"
           >
             Book Now

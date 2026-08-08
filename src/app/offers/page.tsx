@@ -129,7 +129,7 @@ export default function OffersPage() {
                         })}
                       </p>
                     </div>
-                    <Link href="/book">
+                    <Link href="/rooms">
                       <Button size="sm" className="gap-2">
                         Book Now
                         <ArrowRight className="w-4 h-4" />
