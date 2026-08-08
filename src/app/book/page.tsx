@@ -3,11 +3,13 @@
 import { useState, Suspense, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { useRooms } from "@/hooks/useRooms";
 import { useAuthStore, normalizeMobile } from "@/store/auth";
 import { createBooking } from "@/lib/api/hotel";
+import { DEFAULT_ROOM_IMAGE } from "@/lib/api/config";
 import type { Booking, PaymentType } from "@/lib/api/types";
 import { HotelApiError } from "@/lib/api/types";
 import {
@@ -20,6 +22,14 @@ import {
 } from "lucide-react";
 
 type Step = 1 | 2 | 3 | 4;
+
+function todayISO(): string {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
 
 function BookPageContent() {
   const searchParams = useSearchParams();
@@ -45,22 +55,39 @@ function BookPageContent() {
     paymentType: "UPI" as PaymentType,
     advancePayment: "",
   });
+  const [dateError, setDateError] = useState<string | null>(null);
   const [confirmedBooking, setConfirmedBooking] = useState<Booking | null>(
     null
   );
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const roomQuery = useMemo(
-    () => ({
-      available_only: 1 as const,
-      check_in_date: form.checkIn || undefined,
-      check_out_date: form.checkOut || undefined,
-    }),
-    [form.checkIn, form.checkOut]
-  );
+  const datesValid =
+    Boolean(form.checkIn && form.checkOut) && form.checkOut > form.checkIn;
 
-  const { rooms, loading: roomsLoading } = useRooms(roomQuery);
+  // Live inventory for selected stay — API excludes rooms already booked in this range
+  const {
+    rooms,
+    loading: roomsLoading,
+    error: roomsError,
+    fromApi,
+  } = useRooms({
+    available_only: 1,
+    check_in_date: form.checkIn,
+    check_out_date: form.checkOut,
+    useFallback: false,
+    enabled: datesValid,
+  });
+
+  const availableRooms = useMemo(
+    () =>
+      rooms.filter(
+        (room) =>
+          room.apiId != null &&
+          room.maxGuests >= (Number(form.guests) || 1)
+      ),
+    [rooms, form.guests]
+  );
 
   useEffect(() => {
     if (!hydrated || !customer) return;
@@ -72,7 +99,18 @@ function BookPageContent() {
     }));
   }, [hydrated, customer]);
 
-  const selectedRoom = rooms.find(
+  // Drop selection if the room is no longer available for chosen dates
+  useEffect(() => {
+    if (!form.room || roomsLoading) return;
+    const stillAvailable = availableRooms.some(
+      (r) => r.slug === form.room || r.id === form.room
+    );
+    if (!stillAvailable) {
+      setForm((prev) => ({ ...prev, room: "" }));
+    }
+  }, [availableRooms, form.room, roomsLoading]);
+
+  const selectedRoom = availableRooms.find(
     (r) => r.slug === form.room || r.id === form.room
   );
 
@@ -81,7 +119,28 @@ function BookPageContent() {
       HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
     >
   ) => {
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+    if (name === "checkIn" || name === "checkOut") {
+      setDateError(null);
+    }
+  };
+
+  const goToRoomStep = () => {
+    if (!form.checkIn || !form.checkOut) {
+      setDateError("Please select check-in and check-out dates.");
+      return;
+    }
+    if (form.checkOut <= form.checkIn) {
+      setDateError("Check-out must be after check-in.");
+      return;
+    }
+    if (form.checkIn < todayISO()) {
+      setDateError("Check-in date cannot be in the past.");
+      return;
+    }
+    setDateError(null);
+    setStep(2);
   };
 
   const nextStep = () => setStep((s) => Math.min(s + 1, 4) as Step);
@@ -314,9 +373,14 @@ function BookPageContent() {
                     ))}
                   </select>
                 </div>
+                {dateError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-sm px-4 py-3">
+                    {dateError}
+                  </div>
+                )}
                 <div className="flex justify-end pt-4">
                   <Button
-                    onClick={nextStep}
+                    onClick={goToRoomStep}
                     disabled={!form.checkIn || !form.checkOut}
                     className="gap-2"
                   >
@@ -335,53 +399,95 @@ function BookPageContent() {
                 exit={{ opacity: 0, x: -20 }}
                 className="space-y-6"
               >
-                <h2 className="font-[family-name:var(--font-playfair)] text-xl font-medium text-neutral">
-                  Choose your room
-                </h2>
+                <div>
+                  <h2 className="font-[family-name:var(--font-playfair)] text-xl font-medium text-neutral">
+                    Choose your room
+                  </h2>
+                  <p className="text-sm text-tertiary mt-1">
+                    Available for {form.checkIn} → {form.checkOut}
+                    {form.guests
+                      ? ` · ${form.guests} guest${form.guests === "1" ? "" : "s"}`
+                      : ""}
+                  </p>
+                </div>
                 {roomsLoading && (
                   <p className="text-sm text-tertiary">
-                    Checking availability...
+                    Checking availability for your dates...
                   </p>
                 )}
-                {!roomsLoading && rooms.length === 0 && (
+                {!roomsLoading && roomsError && !fromApi && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-sm px-4 py-3">
+                    {roomsError}
+                  </div>
+                )}
+                {!roomsLoading && fromApi && availableRooms.length === 0 && (
                   <p className="text-sm text-tertiary">
-                    No rooms available for these dates. Try different dates.
+                    No rooms available for these dates. Rooms already booked for
+                    this stay are hidden. Try different dates.
                   </p>
                 )}
                 <div className="space-y-3">
-                  {rooms.map((room) => (
-                    <button
-                      key={room.id}
-                      type="button"
-                      onClick={() =>
-                        setForm((p) => ({ ...p, room: room.slug }))
-                      }
-                      className={`w-full text-left p-4 rounded-sm border transition-all ${
-                        form.room === room.slug
-                          ? "border-primary bg-primary/5"
-                          : "border-tertiary/20 hover:border-tertiary/40"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-4">
-                        <div>
-                          <p className="font-medium text-neutral">{room.name}</p>
-                          <p className="text-xs text-tertiary mt-0.5">
-                            {room.categoryName || room.bedType}
-                            {room.maxGuests
-                              ? ` · Up to ${room.maxGuests} guests`
-                              : ""}
-                            {!room.apiId ? " · Showcase only" : ""}
-                          </p>
+                  {availableRooms.map((room) => {
+                    const imageSrc =
+                      room.thumbnail || room.images?.[0] || DEFAULT_ROOM_IMAGE;
+                    const selected = form.room === room.slug;
+                    return (
+                      <button
+                        key={room.id}
+                        type="button"
+                        onClick={() =>
+                          setForm((p) => ({ ...p, room: room.slug }))
+                        }
+                        className={`w-full text-left rounded-sm border transition-all overflow-hidden ${
+                          selected
+                            ? "border-primary bg-primary/5"
+                            : "border-tertiary/20 hover:border-tertiary/40"
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row">
+                          <div className="relative w-full sm:w-40 h-36 sm:h-auto sm:min-h-[112px] shrink-0 bg-cream">
+                            <Image
+                              src={imageSrc}
+                              alt={room.name}
+                              fill
+                              className="object-cover"
+                              sizes="(max-width: 640px) 100vw, 160px"
+                            />
+                          </div>
+                          <div className="flex flex-1 items-center justify-between gap-4 p-4">
+                            <div className="min-w-0">
+                              <p className="font-medium text-neutral">
+                                {room.name}
+                              </p>
+                              <p className="text-xs text-tertiary mt-0.5">
+                                {room.categoryName || room.bedType}
+                                {room.maxGuests
+                                  ? ` · Up to ${room.maxGuests} guests`
+                                  : ""}
+                              </p>
+                              {room.amenities?.length > 0 && (
+                                <p className="text-xs text-tertiary mt-1.5 line-clamp-1">
+                                  {room.amenities.slice(0, 4).join(" · ")}
+                                </p>
+                              )}
+                            </div>
+                            <div className="text-right shrink-0">
+                              <p className="font-semibold text-primary">
+                                ₹{room.price.toLocaleString("en-IN")}
+                              </p>
+                              <p className="text-xs text-tertiary">per night</p>
+                              {selected && (
+                                <span className="inline-flex items-center gap-1 mt-2 text-xs text-primary font-medium">
+                                  <Check className="w-3.5 h-3.5" />
+                                  Selected
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-right shrink-0">
-                          <p className="font-semibold text-primary">
-                            ₹{room.price.toLocaleString("en-IN")}
-                          </p>
-                          <p className="text-xs text-tertiary">per night</p>
-                        </div>
-                      </div>
-                    </button>
-                  ))}
+                      </button>
+                    );
+                  })}
                 </div>
                 <div className="flex justify-between pt-4">
                   <Button variant="outlined" onClick={prevStep}>
@@ -389,7 +495,7 @@ function BookPageContent() {
                   </Button>
                   <Button
                     onClick={nextStep}
-                    disabled={!form.room}
+                    disabled={!selectedRoom}
                     className="gap-2"
                   >
                     Next: Your Details

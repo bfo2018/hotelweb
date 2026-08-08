@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, Phone, User, LogOut, CalendarCheck } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -18,8 +18,29 @@ const navLinks = [
   { href: "/contact", label: "Contact" },
 ];
 
+/** Pages with a dark full-bleed hero — transparent white nav is OK there */
+const darkHeroExactPaths = new Set([
+  "/",
+  "/rooms",
+  "/restaurant",
+  "/events",
+  "/explore",
+  "/offers",
+  "/virtual-tour",
+  "/contact",
+]);
+
+function usesDarkHero(pathname: string): boolean {
+  if (darkHeroExactPaths.has(pathname)) return true;
+  if (pathname.startsWith("/restaurant/") || pathname.startsWith("/events/")) {
+    return true;
+  }
+  return false;
+}
+
 export function Header() {
   const router = useRouter();
+  const pathname = usePathname();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -30,13 +51,22 @@ export function Header() {
   const logout = useAuthStore((s) => s.logout);
   const loggedIn = hydrated && isAuthenticated();
 
+  // Solid header on light pages (book/login/etc.) so menu stays readable
+  const solid = !usesDarkHero(pathname) || isScrolled;
+
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 50);
     };
+    handleScroll();
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+  }, [pathname]);
+
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+    setAccountOpen(false);
+  }, [pathname]);
 
   const handleLogout = async () => {
     setAccountOpen(false);
@@ -49,7 +79,7 @@ export function Header() {
     <>
       <header
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-          isScrolled
+          solid
             ? "bg-white/95 backdrop-blur-md shadow-sm py-3"
             : "bg-transparent py-5"
         }`}
@@ -59,14 +89,14 @@ export function Header() {
             <Link href="/" className="flex items-center gap-2">
               <span
                 className={`font-[family-name:var(--font-playfair)] text-xl md:text-2xl font-medium tracking-tight transition-colors ${
-                  isScrolled ? "text-primary" : "text-white"
+                  solid ? "text-primary" : "text-white"
                 }`}
               >
                 LUMIÈRE
               </span>
               <span
                 className={`text-xs tracking-[0.3em] uppercase transition-colors ${
-                  isScrolled ? "text-tertiary" : "text-white/80"
+                  solid ? "text-tertiary" : "text-white/80"
                 }`}
               >
                 & Stone
@@ -79,7 +109,7 @@ export function Header() {
                   key={link.href}
                   href={link.href}
                   className={`text-sm font-medium tracking-wide transition-colors hover:text-primary ${
-                    isScrolled ? "text-neutral/80" : "text-white/90"
+                    solid ? "text-neutral/80" : "text-white/90"
                   }`}
                 >
                   {link.label}
@@ -91,7 +121,7 @@ export function Header() {
               <a
                 href="tel:+917483667939"
                 className={`flex items-center gap-2 text-sm transition-colors ${
-                  isScrolled ? "text-neutral/70" : "text-white/80"
+                  solid ? "text-neutral/70" : "text-white/80"
                 }`}
               >
                 <Phone className="w-4 h-4" />
@@ -104,7 +134,7 @@ export function Header() {
                     type="button"
                     onClick={() => setAccountOpen((o) => !o)}
                     className={`flex items-center gap-2 text-sm font-medium transition-colors ${
-                      isScrolled ? "text-neutral/80" : "text-white/90"
+                      solid ? "text-neutral/80" : "text-white/90"
                     }`}
                   >
                     <User className="w-4 h-4" />
@@ -144,7 +174,7 @@ export function Header() {
                 <Link
                   href="/login"
                   className={`text-sm font-medium transition-colors hover:text-primary ${
-                    isScrolled ? "text-neutral/80" : "text-white/90"
+                    solid ? "text-neutral/80" : "text-white/90"
                   }`}
                 >
                   Sign In
@@ -152,7 +182,7 @@ export function Header() {
               )}
 
               <Link href="/book">
-                <Button variant={isScrolled ? "primary" : "inverted"} size="sm">
+                <Button variant={solid ? "primary" : "inverted"} size="sm">
                   Book Now
                 </Button>
               </Link>
@@ -161,7 +191,7 @@ export function Header() {
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className={`lg:hidden p-2 transition-colors ${
-                isScrolled ? "text-neutral" : "text-white"
+                solid ? "text-neutral" : "text-white"
               }`}
               aria-label="Toggle menu"
             >

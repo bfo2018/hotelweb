@@ -10,12 +10,14 @@ import { rooms as fallbackRooms, type Room } from "@/data/rooms";
 type UseRoomsOptions = RoomsQuery & {
   /** When true and API fails, return static marketing rooms */
   useFallback?: boolean;
+  /** Skip fetching until ready (e.g. wait for check-in/out dates) */
+  enabled?: boolean;
 };
 
 export function useRooms(options: UseRoomsOptions = {}) {
-  const { useFallback = true, ...query } = options;
+  const { useFallback = true, enabled = true, ...query } = options;
   const [rooms, setRooms] = useState<Room[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<string | null>(null);
   const [fromApi, setFromApi] = useState(false);
 
@@ -25,6 +27,14 @@ export function useRooms(options: UseRoomsOptions = {}) {
     let cancelled = false;
 
     async function load() {
+      if (!enabled) {
+        setRooms([]);
+        setFromApi(false);
+        setError(null);
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       setError(null);
 
@@ -56,7 +66,7 @@ export function useRooms(options: UseRoomsOptions = {}) {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- queryKey serializes filters
-  }, [queryKey, useFallback]);
+  }, [queryKey, useFallback, enabled]);
 
   return { rooms, loading, error, fromApi, refetchKey: queryKey };
 }
